@@ -1,0 +1,51 @@
+:root {
+  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.graph-button {
+  border-radius: 9999px;
+}
+
+.graph-button g {
+  transition: transform 0.2s;
+  transform: scale(1);
+}
+
+.graph-button.clear circle {
+  fill: #54b471;
+}
+
+.graph-button.related circle {
+  fill: #f2ac3c;
+}
+
+.graph-button.editor circle {
+  fill: #ed742e;
+}
+
+.graph-button image {
+  /* mix-blend-mode: multiply; */
+}
+
+.graph {
+  /* background-color: #fefefe; */
+  /* border: solid 1px #f2f2f2;
+  border-radius: 10px; */
+  overflow: visible;
+}
+
+.graph-button.active {
+  z-index: 2000;
+}
+
+.graph-button.active g {
+  transform: scale(2);
+  /* filter: drop-shadow(0 1px 3px rgba(255, 255, 255, 1)); */
+}
