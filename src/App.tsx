@@ -13,6 +13,16 @@ function App() {
     newPeople[newActiveIndex].active = true;
     setPeople(newPeople);
   }, [people]);
+  const setActiveIndex = useCallback(
+    (index: number) => {
+      const newPeople = people.map((p, i) => ({
+        ...p,
+        active: i === index,
+      }));
+      setPeople(newPeople);
+    },
+    [people]
+  );
   return (
     <div>
       <button
@@ -39,7 +49,7 @@ function App() {
       >
         Change Active Element
       </button>
-      <Graph people={people} />
+      <Graph people={people} setActiveIndex={setActiveIndex} />
       <pre>{JSON.stringify(people, null, 2)}</pre>
     </div>
   );

@@ -2,15 +2,24 @@ import { useRef, useEffect, useState } from "react";
 import * as d3 from "d3";
 
 const NODE_RADIUS = 18;
-const ACTIVE_RADIUS = 25;
+const ACTIVE_RADIUS = 58 / 2;
 const NODE_PADDING = 2.5;
-const SVG_WIDTH = 588;
-const SVG_HEIGHT = 200;
+const DRAW_WIDTH = 588;
+const DRAW_HEIGHT = 200;
+const PAD_BOTTOM = 20;
+const SVG_HEIGHT = DRAW_HEIGHT + PAD_BOTTOM;
+const TRANSITION_DURATION = 800;
 
 const imgPosition = -NODE_RADIUS + NODE_PADDING;
 const imgSize = NODE_RADIUS * 2 - NODE_PADDING * 2;
 const activeImgPosition = -ACTIVE_RADIUS + NODE_PADDING;
 const activeImgSize = ACTIVE_RADIUS * 2 - NODE_PADDING * 2;
+
+// Set up your scales
+const xScale = d3
+  .scaleLinear()
+  .domain([0, 100])
+  .range([NODE_RADIUS, DRAW_WIDTH - NODE_RADIUS]);
 
 export type Certainty = "clear" | "related" | "editor";
 
@@ -27,11 +36,20 @@ type Node = {
   certainty: Certainty;
   avatarUrl: string;
   id: number;
+  radius: number;
+  active: boolean;
 };
 
-export function Graph({ people }: { people: FakePerson[] }) {
+export function Graph({
+  people,
+  setActiveIndex,
+}: {
+  people: FakePerson[];
+  setActiveIndex: (index: number) => void;
+}) {
   const d3Container = useRef(null);
   const [initialized, setInitialized] = useState(false);
+  const [initialPositions, setInitialPositions] = useState<Node[]>([]);
 
   // Initialization to set default sizes
   useEffect(() => {
@@ -43,32 +61,45 @@ export function Graph({ people }: { people: FakePerson[] }) {
     // Clear the SVG to re-render it on update
     svg.selectAll("*").remove();
 
-    // Set up your scales
-    const xScale = d3
-      .scaleLinear()
-      .domain([0, 100])
-      .range([NODE_RADIUS, SVG_WIDTH - NODE_RADIUS]);
-
     // Add accent lines at every 10%
-    for (let i = 0; i <= 100; i += 20) {
-      svg
-        .append("line")
-        .attr("x1", xScale(i))
-        .attr("y1", 0)
-        .attr("x2", xScale(i))
-        .attr("y2", SVG_HEIGHT) // Assuming the height of your SVG is 100
-        .attr("stroke", "#ddd") // Style as needed
-        .attr("stroke-width", 1);
+    for (let i = 0; i <= 100; i += 5) {
+      if (i % 10 === 0) {
+        svg
+          .append("line")
+          .attr("x1", xScale(i))
+          .attr("y1", 0)
+          .attr("x2", xScale(i))
+          .attr("y2", DRAW_HEIGHT) // Assuming the height of your SVG is 100
+          .attr("stroke", "#EEF2F5") // Style as needed
+          .attr("stroke-width", 2);
+      }
+
+      if (i % 50 === 0) {
+        // Append text for the percentage
+        svg
+          .append("text")
+          .attr("x", xScale(i)) // Position the text slightly to the right of the line
+          .attr("y", SVG_HEIGHT) // Position the text at the bottom of the SVG
+          .attr("dx", "0.35em")
+          .attr("dy", "-0.35em") // Adjust the position slightly above the bottom edge
+          .attr("text-anchor", "middle") // Center the text on the x position
+          .style("font-family", "Inter") // Apply the "Inter" font
+          .style("font-size", "14px") // Set the font size
+          .style("color", "#334553") // Set the text color
+          .text(`${i}%`); // Set the text to the percentage value
+      }
     }
 
     // Convert numbers to objects
     const nodes: Node[] = people.map(
       ({ value, certainty, avatarUrl }, index) => ({
         x: value,
-        y: SVG_HEIGHT / 2, // Assuming you want them all on the same vertical position
+        y: DRAW_HEIGHT / 2, // Assuming you want them all on the same vertical position
         certainty,
         id: index,
         avatarUrl,
+        radius: NODE_RADIUS,
+        active: false,
       })
     );
 
@@ -85,6 +116,9 @@ export function Graph({ people }: { people: FakePerson[] }) {
     // Manually run the simulation to completion in a tight loop
     for (let i = 0; i < 120; ++i) simulation.tick();
 
+    // Save the initial positions for later
+    setInitialPositions(nodes);
+
     // After the simulation, use the updated positions to set the elements
     const buttonGroup = svg
       .selectAll("g.button")
@@ -96,8 +130,8 @@ export function Graph({ people }: { people: FakePerson[] }) {
       .attr("cursor", "pointer")
       .attr("tabindex", 0)
       .attr("transform", (d) => `translate(${d.x},${d.y})`)
-      .on("click", (d) => {
-        console.log("Button clicked:", d);
+      .on("click", (_, d) => {
+        setActiveIndex(d.id);
       });
 
     buttonGroup.append("circle").attr("r", NODE_RADIUS);
@@ -114,56 +148,70 @@ export function Graph({ people }: { people: FakePerson[] }) {
     setInitialized(true);
 
     return () => {};
-  }, [initialized, people]); // Redraw graph when numbers change
+  }, [initialized, people, setActiveIndex]); // Redraw graph when numbers change
 
   // Separate useEffect to handle adjusting the size of the active element
   useEffect(() => {
-    console.log("Setting Active Element");
-
-    if (!initialized) return;
     if (!d3Container.current) return;
     const svg = d3.select(d3Container.current);
 
-    // get the index of the active element
-    const activeIndex = people.findIndex((person) => person.active);
+    if (!initialized || initialPositions.length === 0) return;
 
-    // Select the active element
-    const activeElement = svg.select(`.graph-button[data-id="${activeIndex}"]`);
+    // Use the stored initial positions as the starting point for the simulation
+    const updatedNodes = initialPositions.map((node, index) => ({
+      ...node,
+      x: people[index].active ? xScale(people[index].value) : node.x,
+      // Set the radius based on active status
+      radius: people[index].active ? ACTIVE_RADIUS : NODE_RADIUS,
+      active: people[index].active,
+    }));
 
-    // Update the active element size
-    activeElement.select("circle").attr("r", ACTIVE_RADIUS);
+    // Re-initialize the simulation
+    const simulation = d3
+      .forceSimulation(updatedNodes)
+      .force("x", d3.forceX((d: Node) => d.x).strength(1))
+      .force("collide", d3.forceCollide((d: Node) => d.radius).strength(1))
+      .stop();
 
-    // Update the active element image size
-    activeElement
-      .select("image")
-      .attr("x", activeImgPosition)
-      .attr("y", activeImgPosition)
-      .attr("width", activeImgSize)
-      .attr("height", activeImgSize);
+    // Manually run the simulation to completion in a tight loop
+    for (let i = 0; i < 120; ++i) simulation.tick();
 
-    // Make sure to reset the size of the other elements
+    // Update the positions and sizes of the nodes after the simulation
     svg
       .selectAll(".graph-button")
-      .filter((d, i) => i !== activeIndex)
-      .select("circle")
-      .attr("r", NODE_RADIUS);
+      .data(updatedNodes)
+      .transition()
+      .duration(TRANSITION_DURATION)
+      .ease(d3.easeElastic.period(0.5))
+      .attr("transform", (d) => `translate(${d.x},${d.y})`)
+      .attr("data-is-active", (d) => d.active);
 
     svg
-      .selectAll(".graph-button")
-      .filter((d, i) => i !== activeIndex)
-      .select("image")
-      .attr("x", imgPosition)
-      .attr("y", imgPosition)
-      .attr("width", imgSize)
-      .attr("height", imgSize);
+      .selectAll(".graph-button circle")
+      .data(updatedNodes)
+      .transition()
+      .duration(TRANSITION_DURATION)
+      .ease(d3.easeElastic.period(0.5))
+      .attr("r", (d) => d.radius);
+
+    svg
+      .selectAll(".graph-button image")
+      .data(updatedNodes)
+      .transition()
+      .duration(TRANSITION_DURATION)
+      .ease(d3.easeElastic.period(0.5))
+      .attr("x", (d) => (d.active ? activeImgPosition : imgPosition))
+      .attr("y", (d) => (d.active ? activeImgPosition : imgPosition))
+      .attr("width", (d) => (d.active ? activeImgSize : imgSize))
+      .attr("height", (d) => (d.active ? activeImgSize : imgSize));
 
     return () => {};
-  }, [people, initialized]);
+  }, [people, initialized, initialPositions]);
 
   return (
     <svg
       className="graph"
-      width={SVG_WIDTH}
+      width={DRAW_WIDTH}
       height={SVG_HEIGHT}
       ref={d3Container}
     />

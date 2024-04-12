@@ -1,8 +1,7 @@
-- make elements adjust to focused element
+- ~~make elements adjust to focused element~~
+- ~~add percentages below the lines~~
 - display the name and value
-- add percentages below the lines
 - make it responsive
-- get active element to always be on top
 
 
 Limitations
