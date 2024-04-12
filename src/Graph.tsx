@@ -1,9 +1,9 @@
 import { useRef, useEffect } from "react";
 import * as d3 from "d3";
 
-const NODE_RADIUS = 17; // Update this to the actual radius of your buttons
+const NODE_RADIUS = 18; // Update this to the actual radius of your buttons
 const ACTIVE_RADIUS = 25;
-const NODE_PADDING = 3; // Update this to the padding between buttons
+const NODE_PADDING = 2.5; // Update this to the padding between buttons
 const SVG_WIDTH = 588; // Update this to the width of your SVG
 const SVG_HEIGHT = 200; // Update this to the height of your SVG
 const SPACE_BETWEEN_NODES = 0;
@@ -20,8 +20,17 @@ export type FakePerson = {
   avatarUrl: string;
 };
 
+type Node = {
+  x: number;
+  y: number;
+  certainty: Certainty;
+  active: boolean;
+  avatarUrl: string;
+};
+
 export function Graph({ people }: { people: FakePerson[] }) {
   const d3Container = useRef(null);
+  const simulation = useRef<d3.Simulation<Node, undefined>>();
 
   useEffect(() => {
     if (!d3Container.current) return;
@@ -34,7 +43,7 @@ export function Graph({ people }: { people: FakePerson[] }) {
     const xScale = d3
       .scaleLinear()
       .domain([0, 100])
-      .range([NODE_RADIUS, SVG_WIDTH - NODE_RADIUS]); // Assuming SVG width is 300
+      .range([NODE_RADIUS, SVG_WIDTH - NODE_RADIUS]);
 
     // Add accent lines at every 10%
     for (let i = 0; i <= 100; i += 20) {
@@ -49,15 +58,15 @@ export function Graph({ people }: { people: FakePerson[] }) {
     }
 
     // Convert numbers to objects
-    const nodes = people.map(({ value, certainty, active, avatarUrl }) => ({
-      x: value,
-      y: SVG_HEIGHT / 2, // Assuming you want them all on the same vertical position
-      certainty,
-      active,
-      avatarUrl,
-    }));
-
-    type Node = (typeof nodes)[number];
+    const nodes: Node[] = people.map(
+      ({ value, certainty, active, avatarUrl }) => ({
+        x: value,
+        y: SVG_HEIGHT / 2, // Assuming you want them all on the same vertical position
+        certainty,
+        active,
+        avatarUrl,
+      })
+    );
 
     // Define a function to determine the radius of each node
     const getNodeRadius = (d: Node) => (d.active ? ACTIVE_RADIUS : NODE_RADIUS);
@@ -91,22 +100,23 @@ export function Graph({ people }: { people: FakePerson[] }) {
 
     buttonGroup.append("circle").attr("r", getNodeRadius);
 
+    const imagePosition = (d: Node) =>
+      d.active ? -ACTIVE_RADIUS + NODE_PADDING : -NODE_RADIUS + NODE_PADDING;
+    const imageSize = (d: Node) =>
+      d.active
+        ? ACTIVE_RADIUS * 2 - NODE_PADDING * 2
+        : NODE_RADIUS * 2 - NODE_PADDING * 2;
+
     buttonGroup
       .append("image")
       .attr("href", (d) => d.avatarUrl)
-      .attr("x", -NODE_RADIUS + NODE_PADDING)
-      .attr("y", -NODE_RADIUS + NODE_PADDING)
-      .attr("width", NODE_RADIUS * 2 - NODE_PADDING * 2)
-      .attr("height", NODE_RADIUS * 2 - NODE_PADDING * 2)
-      .attr("clip-path", "url(#avatar-clip)");
+      .attr("x", imagePosition)
+      .attr("y", imagePosition)
+      .attr("width", imageSize)
+      .attr("height", imageSize)
+      .style("clip-path", "inset(0% round 50%)");
 
-    // Append a defs block for the clip-path
-    svg
-      .append("defs")
-      .append("clipPath")
-      .attr("id", "avatar-clip")
-      .append("circle")
-      .attr("r", NODE_RADIUS - NODE_PADDING);
+    return () => {};
   }, [people]); // Redraw graph when numbers change
 
   return (
