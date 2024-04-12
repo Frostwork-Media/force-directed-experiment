@@ -1,10 +1,15 @@
 import { useRef, useEffect } from "react";
 import * as d3 from "d3";
 
-const buttonRadius = 17; // Update this to the actual radius of your buttons
-const buttonPadding = 3; // Update this to the padding between buttons
-const width = 588; // Update this to the width of your SVG
-const height = 200; // Update this to the height of your SVG
+const NODE_RADIUS = 17; // Update this to the actual radius of your buttons
+const ACTIVE_RADIUS = 25;
+const NODE_PADDING = 3; // Update this to the padding between buttons
+const SVG_WIDTH = 588; // Update this to the width of your SVG
+const SVG_HEIGHT = 200; // Update this to the height of your SVG
+const SPACE_BETWEEN_NODES = 0;
+
+// we can compute the percentage you can scale it up
+const activeUpscale = (NODE_RADIUS + 2 * SPACE_BETWEEN_NODES) / NODE_RADIUS;
 
 export type Certainty = "clear" | "related" | "editor";
 
@@ -29,19 +34,7 @@ export function Graph({ people }: { people: FakePerson[] }) {
     const xScale = d3
       .scaleLinear()
       .domain([0, 100])
-      .range([buttonRadius, width - buttonRadius]); // Assuming SVG width is 300
-
-    // Add super light accent lines every 1%
-    // for (let i = -5; i <= 105; i++) {
-    //   svg
-    //     .append("line")
-    //     .attr("x1", xScale(i))
-    //     .attr("y1", 0)
-    //     .attr("x2", xScale(i))
-    //     .attr("y2", height) // Assuming the height of your SVG is 100
-    //     .attr("stroke", "#eee") // Style as needed
-    //     .attr("stroke-width", 1);
-    // }
+      .range([NODE_RADIUS, SVG_WIDTH - NODE_RADIUS]); // Assuming SVG width is 300
 
     // Add accent lines at every 10%
     for (let i = 0; i <= 100; i += 20) {
@@ -50,7 +43,7 @@ export function Graph({ people }: { people: FakePerson[] }) {
         .attr("x1", xScale(i))
         .attr("y1", 0)
         .attr("x2", xScale(i))
-        .attr("y2", height) // Assuming the height of your SVG is 100
+        .attr("y2", SVG_HEIGHT) // Assuming the height of your SVG is 100
         .attr("stroke", "#ddd") // Style as needed
         .attr("stroke-width", 1);
     }
@@ -58,18 +51,22 @@ export function Graph({ people }: { people: FakePerson[] }) {
     // Convert numbers to objects
     const nodes = people.map(({ value, certainty, active, avatarUrl }) => ({
       x: value,
-      y: height / 2, // Assuming you want them all on the same vertical position
+      y: SVG_HEIGHT / 2, // Assuming you want them all on the same vertical position
       certainty,
       active,
       avatarUrl,
     }));
 
-    // Create a force simulation for the horizontal axis
-    // and prevent circles from overlapping
+    type Node = (typeof nodes)[number];
+
+    // Define a function to determine the radius of each node
+    const getNodeRadius = (d: Node) => (d.active ? ACTIVE_RADIUS : NODE_RADIUS);
+
+    // Update the force simulation with the dynamic collision radius
     const simulation = d3
       .forceSimulation(nodes)
-      .force("x", d3.forceX((d: any) => xScale(d.x)).strength(1))
-      .force("collide", d3.forceCollide(buttonRadius)) // Updated radius to prevent overlap
+      .force("x", d3.forceX((d: Node) => xScale(d.x)).strength(1))
+      .force("collide", d3.forceCollide(getNodeRadius).strength(1))
       .stop(); // We must stop the simulation so we can run it manually
 
     // Manually run the simulation to completion in a tight loop
@@ -90,18 +87,17 @@ export function Graph({ people }: { people: FakePerson[] }) {
       .attr("transform", (d) => `translate(${d.x},${d.y})`)
       .on("click", (d) => {
         console.log("Button clicked:", d);
-      })
-      .append("g");
+      });
 
-    buttonGroup.append("circle").attr("r", buttonRadius);
+    buttonGroup.append("circle").attr("r", getNodeRadius);
 
     buttonGroup
       .append("image")
       .attr("href", (d) => d.avatarUrl)
-      .attr("x", -buttonRadius + buttonPadding)
-      .attr("y", -buttonRadius + buttonPadding)
-      .attr("width", buttonRadius * 2 - buttonPadding * 2)
-      .attr("height", buttonRadius * 2 - buttonPadding * 2)
+      .attr("x", -NODE_RADIUS + NODE_PADDING)
+      .attr("y", -NODE_RADIUS + NODE_PADDING)
+      .attr("width", NODE_RADIUS * 2 - NODE_PADDING * 2)
+      .attr("height", NODE_RADIUS * 2 - NODE_PADDING * 2)
       .attr("clip-path", "url(#avatar-clip)");
 
     // Append a defs block for the clip-path
@@ -110,10 +106,16 @@ export function Graph({ people }: { people: FakePerson[] }) {
       .append("clipPath")
       .attr("id", "avatar-clip")
       .append("circle")
-      .attr("r", buttonRadius - buttonPadding);
+      .attr("r", NODE_RADIUS - NODE_PADDING);
   }, [people]); // Redraw graph when numbers change
 
   return (
-    <svg className="graph" width={width} height={height} ref={d3Container} />
+    <svg
+      className="graph"
+      style={{ "--active-upscale": activeUpscale } as React.CSSProperties}
+      width={SVG_WIDTH}
+      height={SVG_HEIGHT}
+      ref={d3Container}
+    />
   );
 }

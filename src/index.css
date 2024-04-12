@@ -13,9 +13,19 @@
   border-radius: 9999px;
 }
 
-.graph-button g {
-  transition: transform 0.2s;
+.graph-button:focus {
+  outline: none;
+}
+
+.graph-button > g {
+  transition: transform 1s;
   transform: scale(1);
+  /* opacity: 0.75; */
+}
+
+.graph-button.active > g {
+  /* opacity: 1; */
+  transform: scale(var(--active-upscale));
 }
 
 .graph-button.clear circle {
@@ -43,9 +53,4 @@
 
 .graph-button.active {
   z-index: 2000;
-}
-
-.graph-button.active g {
-  transform: scale(2);
-  /* filter: drop-shadow(0 1px 3px rgba(255, 255, 255, 1)); */
 }

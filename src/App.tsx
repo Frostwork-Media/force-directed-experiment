@@ -1,10 +1,18 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import "./App.css";
 import { Certainty, FakePerson, Graph } from "./Graph";
 import { faker } from "@faker-js/faker";
 
 function App() {
-  const [people, setPeople] = useState(generate());
+  const [people, setPeople] = useState(() => generate());
+  const nextActivePerson = useCallback(() => {
+    const newPeople = [...people];
+    const activeIndex = newPeople.findIndex((p) => p.active);
+    newPeople[activeIndex].active = false;
+    const newActiveIndex = (activeIndex + 1) % newPeople.length;
+    newPeople[newActiveIndex].active = true;
+    setPeople(newPeople);
+  }, [people]);
   return (
     <div>
       <button
@@ -18,6 +26,18 @@ function App() {
         }}
       >
         Generate new set
+      </button>
+      <button
+        onClick={nextActivePerson}
+        style={{
+          display: "block",
+          margin: "0 auto",
+          padding: "10px 20px",
+          fontSize: "16px",
+          cursor: "pointer",
+        }}
+      >
+        Change Active Element
       </button>
       <Graph people={people} />
       <pre>{JSON.stringify(people, null, 2)}</pre>
