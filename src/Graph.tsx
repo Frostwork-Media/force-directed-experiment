@@ -4,8 +4,8 @@ import * as d3 from "d3";
 const NODE_RADIUS = 18;
 const ACTIVE_RADIUS = 58 / 2;
 const NODE_PADDING = 2.5;
-const DRAW_WIDTH = 588;
-const DRAW_HEIGHT = 200;
+const DRAW_WIDTH = 890;
+const DRAW_HEIGHT = 275;
 const PAD_BOTTOM = 20;
 const SVG_HEIGHT = DRAW_HEIGHT + PAD_BOTTOM;
 const TRANSITION_DURATION = 900;
@@ -252,6 +252,9 @@ export function Graph({
       className="graph"
       width={DRAW_WIDTH}
       height={SVG_HEIGHT}
+      // width="100%"
+      // height="auto"
+      viewBox={`0 0 ${DRAW_WIDTH} ${SVG_HEIGHT}`}
       ref={d3Container}
     />
   );

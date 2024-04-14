@@ -49,7 +49,16 @@ function App() {
       >
         Change Active Element
       </button>
-      <Graph people={people} setActiveIndex={setActiveIndex} />
+      <div
+        style={{
+          resize: "both",
+          overflow: "auto",
+          width: "750px",
+          border: "1px solid black",
+        }}
+      >
+        <Graph people={people} setActiveIndex={setActiveIndex} />
+      </div>
       <pre>{JSON.stringify(people, null, 2)}</pre>
     </div>
   );

@@ -5,4 +5,4 @@
 
 
 Limitations
-- we can't display one thing over another
+- ~~we can't display one thing over another~~
