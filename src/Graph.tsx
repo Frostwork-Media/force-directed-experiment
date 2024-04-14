@@ -8,7 +8,7 @@ const DRAW_WIDTH = 588;
 const DRAW_HEIGHT = 200;
 const PAD_BOTTOM = 20;
 const SVG_HEIGHT = DRAW_HEIGHT + PAD_BOTTOM;
-const TRANSITION_DURATION = 800;
+const TRANSITION_DURATION = 900;
 
 const imgPosition = -NODE_RADIUS + NODE_PADDING;
 const imgSize = NODE_RADIUS * 2 - NODE_PADDING * 2;
@@ -28,12 +28,14 @@ export type FakePerson = {
   certainty: Certainty;
   active: boolean;
   avatarUrl: string;
+  name: string;
 };
 
 type Node = {
   x: number;
   y: number;
   certainty: Certainty;
+  name: string;
   avatarUrl: string;
   id: number;
   radius: number;
@@ -92,11 +94,12 @@ export function Graph({
 
     // Convert numbers to objects
     const nodes: Node[] = people.map(
-      ({ value, certainty, avatarUrl }, index) => ({
+      ({ value, certainty, avatarUrl, name }, index) => ({
         x: value,
         y: DRAW_HEIGHT / 2, // Assuming you want them all on the same vertical position
         certainty,
         id: index,
+        name,
         avatarUrl,
         radius: NODE_RADIUS,
         active: false,
@@ -144,6 +147,21 @@ export function Graph({
       .attr("width", imgSize)
       .attr("height", imgSize)
       .style("clip-path", "inset(0% round 50%)");
+
+    svg
+      .append("filter")
+      .attr("id", "shadow")
+      // prevent it from being clipped
+      .attr("x", "-50%")
+      .attr("y", "-100%")
+      .attr("width", "200%")
+      .attr("height", "300%")
+      .append("feDropShadow")
+      .attr("dx", 0)
+      .attr("dy", 4)
+      .attr("stdDeviation", 6)
+      .attr("flood-color", "rgba(0, 0, 0, 0.1)")
+      .attr("flood-opacity", 1);
 
     setInitialized(true);
 
@@ -205,6 +223,27 @@ export function Graph({
       .attr("width", (d) => (d.active ? activeImgSize : imgSize))
       .attr("height", (d) => (d.active ? activeImgSize : imgSize));
 
+    // get active node, exit if not found
+    const activeNode = updatedNodes.find((node) => node.active);
+    if (!activeNode) return;
+
+    // Fade out old text elements
+    svg
+      .selectAll(".active-title-group")
+      .transition()
+      .duration(TRANSITION_DURATION / 4)
+      .style("opacity", 0)
+      .remove();
+
+    createTextElement(svg, activeNode.name, "top", activeNode.x, activeNode.y);
+    createTextElement(
+      svg,
+      `${Math.round(activeNode.x)}%`,
+      "bottom",
+      activeNode.x,
+      activeNode.y
+    );
+
     return () => {};
   }, [people, initialized, initialPositions]);
 
@@ -216,4 +255,67 @@ export function Graph({
       ref={d3Container}
     />
   );
+}
+
+function createTextElement(
+  svg: d3.Selection<d3.BaseType, unknown, HTMLElement, undefined>,
+  text: string,
+  position: "top" | "bottom",
+  x: number,
+  y: number
+) {
+  // Define padding around the text
+  const paddingX = 12;
+  const paddingY = 8;
+
+  // Create a group to hold the rect and text together
+  const textGroup = svg
+    .append("g")
+    .attr("class", "active-title-group")
+    .style("opacity", 0)
+    .attr(
+      "transform",
+      `translate(${x}, ${
+        position === "top" ? y - ACTIVE_RADIUS - 20 : y + ACTIVE_RADIUS + 30
+      })`
+    );
+
+  // Create and style the text element to calculate its size
+  const textElement = textGroup
+    .append("text")
+    .attr("class", "active-title")
+    .attr("dx", 0)
+    .attr("dy", 0)
+    .attr("text-anchor", "middle")
+    .style("font-family", "Inter")
+    .style("font-size", "14px")
+    .style("fill", "#334553") // Use fill for text color in SVG
+    .style("pointer-events", "none")
+    .text(text);
+
+  // Calculate the bounding box of the text element
+  const bbox = textElement.node()!.getBBox();
+
+  // Append a rect element behind the text
+  textGroup
+    .insert("rect", "text")
+    .attr("x", bbox.x - paddingX)
+    .attr("y", bbox.y - paddingY)
+    .attr("width", bbox.width + paddingX * 2)
+    .attr("height", bbox.height + paddingY * 2)
+    .attr("rx", 8)
+    .attr("stroke", "#e5e5e5")
+    .attr("stroke-width", 1)
+    .attr("filter", "url(#shadow)")
+    .attr("fill", "white")
+    .style("pointer-events", "none");
+
+  // Make sure the text is on top by re-appending it to the group
+  textGroup.append(() => textElement.node());
+
+  // Fade in new text element
+  textGroup
+    .transition()
+    .duration(TRANSITION_DURATION / 4)
+    .style("opacity", 1);
 }

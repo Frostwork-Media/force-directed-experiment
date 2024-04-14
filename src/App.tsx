@@ -71,6 +71,7 @@ function generate() {
         certainty: getRandomCertainty(),
         active: i === 0,
         avatarUrl: faker.image.avatar(),
+        name: faker.person.fullName(),
       };
 
       return person;
