@@ -1,7 +1,8 @@
 - ~~make elements adjust to focused element~~
 - ~~add percentages below the lines~~
 - ~~display the name and value~~
-- make it responsive
+- ~~make it responsive~~
+  - ~~the circles need to keep their size~~
 
 
 Limitations

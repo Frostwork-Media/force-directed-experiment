@@ -13,6 +13,7 @@ function App() {
     newPeople[newActiveIndex].active = true;
     setPeople(newPeople);
   }, [people]);
+
   const setActiveIndex = useCallback(
     (index: number) => {
       const newPeople = people.map((p, i) => ({
@@ -49,17 +50,9 @@ function App() {
       >
         Change Active Element
       </button>
-      <div
-        style={{
-          resize: "both",
-          overflow: "auto",
-          width: "750px",
-          border: "1px solid black",
-        }}
-      >
-        <Graph people={people} setActiveIndex={setActiveIndex} />
-      </div>
-      <pre>{JSON.stringify(people, null, 2)}</pre>
+
+      <Graph people={people} setActiveIndex={setActiveIndex} />
+      {/* <pre>{JSON.stringify(people, null, 2)}</pre> */}
     </div>
   );
 }
@@ -72,7 +65,7 @@ export default App;
  */
 function generate() {
   const length = Math.floor(Math.random() * 50) + 1;
-  return Array.from({ length }, () => Math.floor(Math.random() * 100) + 1)
+  return Array.from({ length }, () => Math.floor(Math.random() * 100))
     .sort((a, b) => a - b)
     .map((n, i) => {
       const person: FakePerson = {

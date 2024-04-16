@@ -1,5 +1,6 @@
-import { useRef, useEffect, useState } from "react";
+import { useRef, useEffect, useState, useMemo, useCallback } from "react";
 import * as d3 from "d3";
+import debounce from "lodash.debounce";
 
 const NODE_RADIUS = 18;
 const ACTIVE_RADIUS = 58 / 2;
@@ -9,17 +10,12 @@ const DRAW_HEIGHT = 275;
 const PAD_BOTTOM = 20;
 const SVG_HEIGHT = DRAW_HEIGHT + PAD_BOTTOM;
 const TRANSITION_DURATION = 900;
+const LINE_COLOR = "#EEF2F5";
 
 const imgPosition = -NODE_RADIUS + NODE_PADDING;
 const imgSize = NODE_RADIUS * 2 - NODE_PADDING * 2;
 const activeImgPosition = -ACTIVE_RADIUS + NODE_PADDING;
 const activeImgSize = ACTIVE_RADIUS * 2 - NODE_PADDING * 2;
-
-// Set up your scales
-const xScale = d3
-  .scaleLinear()
-  .domain([0, 100])
-  .range([NODE_RADIUS, DRAW_WIDTH - NODE_RADIUS]);
 
 export type Certainty = "clear" | "related" | "editor";
 
@@ -40,6 +36,7 @@ type Node = {
   id: number;
   radius: number;
   active: boolean;
+  value: number;
 };
 
 export function Graph({
@@ -52,13 +49,72 @@ export function Graph({
   const d3Container = useRef(null);
   const [initialized, setInitialized] = useState(false);
   const [initialPositions, setInitialPositions] = useState<Node[]>([]);
+  const [width, setWidth] = useState<number | null>(null);
+  const resize = useCallback((newWidth: number) => {
+    setInitialized(false);
+    setWidth(newWidth);
+  }, []);
+  const resizeDebounce = useMemo(() => debounce(resize, 100), [resize]);
 
-  // Initialization to set default sizes
-  useEffect(() => {
-    if (initialized) return;
+  const observer = useRef<ResizeObserver | null>(null);
+
+  const onNodeMouseEnter = useCallback((node: Node) => {
+    // do nothing for the active node
+    if (node.active) return;
 
     if (!d3Container.current) return;
     const svg = d3.select(d3Container.current);
+
+    // remove any existing tooltips that don't have the [data-is-active] attribute = true
+    svg.selectAll(".active-title-group[data-is-active=false]").remove();
+
+    createTextElement({
+      svg,
+      text: node.name,
+      position: "top",
+      x: node.x,
+      y: node.y,
+      isActive: false,
+    });
+    createTextElement({
+      svg,
+      text: `${node.value}%`,
+      position: "bottom",
+      x: node.x,
+      y: node.y,
+      isActive: false,
+    });
+  }, []);
+
+  const onNodeMouseLeave = useCallback(() => {
+    // remove any existing tooltips
+    if (!d3Container.current) return;
+    const svg = d3.select(d3Container.current);
+    svg.selectAll(".active-title-group[data-is-active=false]").remove();
+  }, []);
+
+  useEffect(() => {
+    if (!d3Container.current) return;
+    observer.current = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        console.log("width", entry.contentRect.width);
+        resizeDebounce(entry.contentRect.width);
+      }
+    });
+    observer.current.observe(d3Container.current);
+    return () => {
+      observer.current?.disconnect();
+    };
+  }, [resizeDebounce]);
+
+  // Initialization to set default sizes
+  useEffect(() => {
+    if (initialized || !d3Container.current || width === null) return;
+
+    const svg = d3.select(d3Container.current);
+
+    // Set up your scales
+    const xScale = createXScale(width);
 
     // Clear the SVG to re-render it on update
     svg.selectAll("*").remove();
@@ -72,7 +128,7 @@ export function Graph({
           .attr("y1", 0)
           .attr("x2", xScale(i))
           .attr("y2", DRAW_HEIGHT) // Assuming the height of your SVG is 100
-          .attr("stroke", "#EEF2F5") // Style as needed
+          .attr("stroke", LINE_COLOR) // Style as needed
           .attr("stroke-width", 2);
       }
 
@@ -103,6 +159,7 @@ export function Graph({
         avatarUrl,
         radius: NODE_RADIUS,
         active: false,
+        value,
       })
     );
 
@@ -135,6 +192,12 @@ export function Graph({
       .attr("transform", (d) => `translate(${d.x},${d.y})`)
       .on("click", (_, d) => {
         setActiveIndex(d.id);
+      })
+      .on("mouseenter", (_, d) => {
+        onNodeMouseEnter(d);
+      })
+      .on("mouseleave", (_, d) => {
+        onNodeMouseLeave();
       });
 
     buttonGroup.append("circle").attr("r", NODE_RADIUS);
@@ -166,12 +229,21 @@ export function Graph({
     setInitialized(true);
 
     return () => {};
-  }, [initialized, people, setActiveIndex]); // Redraw graph when numbers change
+  }, [
+    initialized,
+    onNodeMouseEnter,
+    onNodeMouseLeave,
+    people,
+    setActiveIndex,
+    width,
+  ]); // Redraw graph when numbers change
 
   // Separate useEffect to handle adjusting the size of the active element
   useEffect(() => {
-    if (!d3Container.current) return;
+    if (!d3Container.current || width === null) return;
     const svg = d3.select(d3Container.current);
+
+    const xScale = createXScale(width);
 
     if (!initialized || initialPositions.length === 0) return;
 
@@ -231,50 +303,62 @@ export function Graph({
     svg
       .selectAll(".active-title-group")
       .transition()
-      .duration(TRANSITION_DURATION / 4)
+      .duration(TRANSITION_DURATION / 6)
       .style("opacity", 0)
       .remove();
 
-    createTextElement(svg, activeNode.name, "top", activeNode.x, activeNode.y);
-    createTextElement(
+    createTextElement({
       svg,
-      `${Math.round(activeNode.x)}%`,
-      "bottom",
-      activeNode.x,
-      activeNode.y
-    );
+      text: activeNode.name,
+      position: "top",
+      x: activeNode.x,
+      y: activeNode.y,
+      isActive: true,
+    });
+    createTextElement({
+      svg,
+      text: `${activeNode.value}%`,
+      position: "bottom",
+      x: activeNode.x,
+      y: activeNode.y,
+      isActive: true,
+    });
 
     return () => {};
-  }, [people, initialized, initialPositions]);
+  }, [people, initialized, initialPositions, width]);
 
   return (
-    <svg
-      className="graph"
-      width={DRAW_WIDTH}
-      height={SVG_HEIGHT}
-      // width="100%"
-      // height="auto"
-      viewBox={`0 0 ${DRAW_WIDTH} ${SVG_HEIGHT}`}
-      ref={d3Container}
-    />
+    <svg className="graph" height={SVG_HEIGHT} width="100%" ref={d3Container} />
   );
 }
 
-function createTextElement(
-  svg: d3.Selection<d3.BaseType, unknown, HTMLElement, undefined>,
-  text: string,
-  position: "top" | "bottom",
-  x: number,
-  y: number
-) {
+const BORDER_COLOR = "#e2e8f0";
+
+function createTextElement({
+  svg,
+  text,
+  position,
+  x,
+  y,
+  isActive,
+}: {
+  svg: d3.Selection<d3.BaseType, unknown, HTMLElement, undefined>;
+  text: string;
+  position: "top" | "bottom";
+  x: number;
+  y: number;
+  isActive: boolean;
+}) {
   // Define padding around the text
   const paddingX = 12;
-  const paddingY = 8;
+  const paddingY = 10;
 
   // Create a group to hold the rect and text together
   const textGroup = svg
     .append("g")
     .attr("class", "active-title-group")
+    .attr("pointer-events", "none")
+    .attr("data-is-active", isActive)
     .style("opacity", 0)
     .attr(
       "transform",
@@ -307,8 +391,8 @@ function createTextElement(
     .attr("width", bbox.width + paddingX * 2)
     .attr("height", bbox.height + paddingY * 2)
     .attr("rx", 8)
-    .attr("stroke", "#e5e5e5")
-    .attr("stroke-width", 1)
+    .attr("stroke", BORDER_COLOR)
+    .attr("stroke-width", 2)
     .attr("filter", "url(#shadow)")
     .attr("fill", "white")
     .style("pointer-events", "none");
@@ -319,6 +403,13 @@ function createTextElement(
   // Fade in new text element
   textGroup
     .transition()
-    .duration(TRANSITION_DURATION / 4)
+    .duration(TRANSITION_DURATION / 6)
     .style("opacity", 1);
+}
+
+function createXScale(width = DRAW_WIDTH) {
+  return d3
+    .scaleLinear()
+    .domain([0, 100])
+    .range([NODE_RADIUS, width - NODE_RADIUS]);
 }
